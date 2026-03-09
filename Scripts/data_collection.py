@@ -54,6 +54,8 @@ def pred():
     sequence_data = []
     current_status = "None"
     status_color = (255, 255, 255)
+    prev_landmarks = None
+    ALPHA = .5
 
     # データ収集ループ
     while cap.isOpened():
@@ -74,18 +76,39 @@ def pred():
         if results.pose_landmarks:
             # 1人目の検出結果を取得
             landmarks = results.pose_landmarks[0]
+
+            # 鼻をインデックス0として座標取得
+            nose_x = landmarks[0].x
+            nose_y = landmarks[0].y
+            nose_z = landmarks[0].z
             
             target_indices = range(11)
             frame_features = []
 
             for index in target_indices:
                 lm = landmarks[index]
+                # 画面に円を出力させるための計算
                 px, py = int(lm.x * width), int(lm.y * height)
 
-                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
-                frame_features.extend([lm.x, lm.y, lm.z])
+                # 鼻を基準にした相対座標の計算
+                rel_x = lm.x - nose_x
+                rel_y = lm.y - nose_y
+                rel_z = lm.z - nose_z
 
-            sequence_data.append(frame_features)
+                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
+                frame_features.extend([rel_x, rel_y, rel_z])
+
+            frame_features = np.array(frame_features)
+
+            # ノイズ対策(微妙な振動)
+            if prev_landmarks is None:
+                smoothed_features = frame_features
+            else:
+                smoothed_features = ALPHA * frame_features + (1 - ALPHA) * prev_landmarks
+
+            prev_landmarks = smoothed_features
+
+            sequence_data.append(smoothed_features.tolist())
 
             if len(sequence_data) == TIMESTEPS:
                 # 入力の形に変換(1, 30, 33)
@@ -117,6 +140,8 @@ def pred():
 def create_features(file_name):
     sequence_data = []
     all_samples = []
+    prev_landmarks = None
+    ALPHA = .5
 
     # データ収集ループ
     while cap.isOpened():
@@ -137,18 +162,39 @@ def create_features(file_name):
         if results.pose_landmarks:
             # 1人目の検出結果を取得
             landmarks = results.pose_landmarks[0]
+
+            # 鼻をインデックス0として座標取得
+            nose_x = landmarks[0].x
+            nose_y = landmarks[0].y
+            nose_z = landmarks[0].z
             
             target_indices = range(11)
             frame_features = []
 
             for index in target_indices:
                 lm = landmarks[index]
+                # 画面に円を出力させるための計算
                 px, py = int(lm.x * width), int(lm.y * height)
 
-                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
-                frame_features.extend([lm.x, lm.y, lm.z])
+                # 鼻を基準にした相対座標の計算
+                rel_x = lm.x - nose_x
+                rel_y = lm.y - nose_y
+                rel_z = lm.z - nose_z
 
-            sequence_data.append(frame_features)
+                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
+                frame_features.extend([rel_x, rel_y, rel_z])
+
+            frame_features = np.array(frame_features)
+
+            # ノイズ対策(微妙な振動)
+            if prev_landmarks is None:
+                smoothed_features = frame_features
+            else:
+                smoothed_features = ALPHA * frame_features + (1 - ALPHA) * prev_landmarks
+
+            prev_landmarks = smoothed_features
+
+            sequence_data.append(smoothed_features.tolist())
 
             if len(sequence_data) == TIMESTEPS:
                 all_samples.append(sequence_data)
