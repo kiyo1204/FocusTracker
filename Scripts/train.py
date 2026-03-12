@@ -7,7 +7,7 @@ from tensorflow.keras.layers import LSTM, Conv1D, MaxPooling1D, Dense, Dropout
 from sklearn.model_selection import train_test_split
 
 TIMESTEPS = 30 # 1秒間にどれだけのデータを処理するか
-FEATURES = 33 # 特徴量の数
+FEATURES = 33 # 特徴量の数(ランドマークx3)
 
 try:
     X_focus = np.load("./data/focus_data.npy") # 集中
@@ -15,7 +15,7 @@ try:
     X = np.concatenate([X_focus, X_unfocus], axis=0)
     y = np.concatenate([np.ones(len(X_focus)), np.zeros(len(X_unfocus))])
 except Exception as e:
-    print("ファイルが無いか破損しています\n")
+    print(f"ファイルが無いか破損しています {e}")
     exit()
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.2, random_state=42)
@@ -83,7 +83,7 @@ history = model.fit(
     epochs=30,
     batch_size=16,
     validation_data=(X_test, y_test),
-    verbose=2
+    verbose=1
 )
 
 model.save("./models/model.keras")

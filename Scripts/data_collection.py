@@ -14,8 +14,10 @@ from tensorflow.keras.models import load_model
 
 
 # 初期設定
-cap = cv2.VideoCapture(0)
-TIMESTEPS = 30 
+cap = cv2.VideoCapture(0) # カメラ読み込み
+TIMESTEPS = 30 # １秒間に取得するデータ数
+ALPHA = .5 # 座標の平滑化係数
+JUMP_THRESHOLD = .2 # 1フレームで動ける限界値(画面に対する割合)
 
 # 保存先フォルダとモデルの準備
 os.makedirs("./data", exist_ok=True)
@@ -48,12 +50,13 @@ def pred():
         detector.close()
         exit()
 
-    print("予測を開始します... ('@'キーで終了)")
+    print("予測を開始します")
     time.sleep(3)
 
     sequence_data = []
     current_status = "None"
     status_color = (255, 255, 255)
+    prev_landmarks = None
 
     # データ収集ループ
     while cap.isOpened():
@@ -74,18 +77,39 @@ def pred():
         if results.pose_landmarks:
             # 1人目の検出結果を取得
             landmarks = results.pose_landmarks[0]
+
+            # 鼻をインデックス0として座標取得
+            nose_x = landmarks[0].x
+            nose_y = landmarks[0].y
+            nose_z = landmarks[0].z
             
-            target_indices = range(11)
+            target_indices = [0, 2, 5, 8, 7, 9, 10, 11, 12, 15, 16]
             frame_features = []
 
             for index in target_indices:
                 lm = landmarks[index]
+                # 画面に円を出力させるための計算
                 px, py = int(lm.x * width), int(lm.y * height)
 
-                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
-                frame_features.extend([lm.x, lm.y, lm.z])
+                # 鼻を基準にした相対座標の計算
+                rel_x = lm.x - nose_x
+                rel_y = lm.y - nose_y
+                rel_z = lm.z - nose_z
 
-            sequence_data.append(frame_features)
+                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
+                frame_features.extend([rel_x, rel_y, rel_z])
+
+            frame_features = np.array(frame_features)
+
+            # ノイズ対策(微妙な振動)
+            if prev_landmarks is None:
+                smoothed_features = frame_features
+            else:
+                smoothed_features = ALPHA * frame_features + (1 - ALPHA) * prev_landmarks
+
+            prev_landmarks = smoothed_features
+
+            sequence_data.append(smoothed_features.tolist())
 
             if len(sequence_data) == TIMESTEPS:
                 # 入力の形に変換(1, 30, 33)
@@ -104,9 +128,10 @@ def pred():
                 sequence_data.pop(0)
 
         cv2.putText(frame, current_status, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, status_color, 3)
+        cv2.putText(frame, "Press '@' to exit", (20, 450), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow("Real-Time Prediction", frame)
         if cv2.waitKey(1) & 0xFF == ord("@"): 
-            print("プログラムを停止します")
+            print("--- プログラムを停止します ---")
             detector.close()
             break
 
@@ -117,6 +142,7 @@ def pred():
 def create_features(file_name):
     sequence_data = []
     all_samples = []
+    prev_landmarks = None
 
     # データ収集ループ
     while cap.isOpened():
@@ -137,45 +163,100 @@ def create_features(file_name):
         if results.pose_landmarks:
             # 1人目の検出結果を取得
             landmarks = results.pose_landmarks[0]
+
+            # Visibilityが.5以下だったら不正確なデータとして破棄
+            if landmarks[0].visibility < .5:
+                continue
+
+            # 鼻をインデックス0として座標取得
+            nose_x = landmarks[0].x
+            nose_y = landmarks[0].y
+            nose_z = landmarks[0].z
             
-            target_indices = range(11)
+            target_indices = [0, 2, 5, 8, 7, 9, 10, 11, 12, 15, 16]
             frame_features = []
+            # 外れ値かどうか
+            is_outlier = False
 
             for index in target_indices:
                 lm = landmarks[index]
+                # 画面に円を出力させるための計算
                 px, py = int(lm.x * width), int(lm.y * height)
 
-                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
-                frame_features.extend([lm.x, lm.y, lm.z])
+                # 鼻を基準にした相対座標の計算
+                rel_x = lm.x - nose_x
+                rel_y = lm.y - nose_y
+                rel_z = lm.z - nose_z
 
-            sequence_data.append(frame_features)
+                """if lm.visibility < .2:
+                    is_outlier = True
+                    print("⚠不正確なデータがあるため破棄")
+                    break"""
+
+                cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
+                frame_features.extend([rel_x, rel_y, rel_z])
+
+            if is_outlier:
+                continue
+
+            frame_features = np.array(frame_features)
+
+            # ワープ(読み取りエラー)の判定
+            if prev_landmarks is not None:
+                # 全座標のずれの平均
+                distance = np.mean(np.abs(frame_features - prev_landmarks))
+
+                # 平均が閾値を超えたら破棄
+                if distance > JUMP_THRESHOLD:
+                    print("⚠読み取り誤検知のため破棄")
+                    continue
+
+                # ノイズ対策(微妙な振動)
+                smoothed_features = ALPHA * frame_features + (1 - ALPHA) * prev_landmarks
+            else:
+                smoothed_features = frame_features
+
+            prev_landmarks = smoothed_features
+
+            sequence_data.append(smoothed_features.tolist())
 
             if len(sequence_data) == TIMESTEPS:
                 all_samples.append(sequence_data)
                 sequence_data = []
-                print(f"データ保存完了: 現在のサンプル数 {len(all_samples)}\n")
+                print(f"✅データ保存完了: 現在のサンプル数 {len(all_samples)}")
 
+        cv2.putText(frame, "Press '@' to exit", (20, 450), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow("Data Collection", frame)
         if cv2.waitKey(1) & 0xFF == ord("@"):
             # 終了処理とデータ保存
             cap.release()
             cv2.destroyAllWindows()
 
-            print("- プログラムを停止します\n- 取得データを保存しますか?\n")
-            if input("- 保存するなら'YES'を押してください\n") == "YES":  
-                print("** データを保存します **")
+            print("プログラムを停止します")
+            print("取得データを保存しますか? 保存するなら'YES'を押してください")
+            if input() == "YES": 
+                print("*** データを保存します ***")
                 if len(all_samples) > 0:
                     X_data = np.array(all_samples)
-                    print(f"\n データの最終形状: {X_data.shape}")
+
+                    if os.path.exists(file_name):
+                        print("既存ファイルに結合しますか?")
+                        print("保存するなら'YES'を押してください")
+                        if input() == "YES":
+                            print("*** 既存データに結合します ***")
+                            existing_data = np.load(file_name)
+                            X_data = np.concatenate((existing_data, X_data), axis=0)
+                            print("✅ 既存データと結合しました")
                     
+                    print(f"- データの最終形状: {X_data.shape}")
                     np.save(file_name, X_data)
-                    print(f"✅ {file_name} に保存しました！")
+                    print("✅ 保存しました！")
                 else:
-                    print("\n⚠️ サンプルが1つも取得できませんでした。保存をスキップします。")
+                    print("⚠️ サンプルが1つも取得できませんでした。保存をスキップします. ")
                     detector.close()
                     break
-            else:
-                print("** 保存せずに終了します **")
+                
+            print("--- 終了します ---")
             detector.close()
             break
 
@@ -184,25 +265,24 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         number = sys.argv[1]
     else:
-        print("error: 引数が指定されていません")
         detector.close()
         exit()
 
     if number == "1":
         file_name = "./data/focus_data.npy"
-        print("【集中】のデータを収集します。")
+        print("【集中】のデータを収集します. ")
         time.sleep(3)
-        print("記録を開始します... ('@'キーで終了)")
+        print("記録を開始します")
         create_features(file_name)
     elif number == "2":
         file_name = "./data/unfocus_data.npy"
         print("【非集中】のデータを収集します。")
         time.sleep(3)
-        print("記録を開始します... ('@'キーで終了)")
+        print("記録を開始します")
         create_features(file_name)
     elif number == "3":
         pred()
     else:
-        print("1か2か3を入力してください。\nプログラムを終了します。")
+        print("1か2か3を入力してください. \nプログラムを終了します。")
         detector.close()
         exit()
