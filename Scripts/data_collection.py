@@ -188,11 +188,6 @@ def create_features(file_name):
                 rel_y = lm.y - nose_y
                 rel_z = lm.z - nose_z
 
-                """if lm.visibility < .2:
-                    is_outlier = True
-                    print("⚠不正確なデータがあるため破棄")
-                    break"""
-
                 cv2.circle(frame, (px, py), 8, (0, 255, 0), -1)
                 frame_features.extend([rel_x, rel_y, rel_z])
 
