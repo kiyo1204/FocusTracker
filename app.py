@@ -22,9 +22,7 @@ class ScriptControllerApp(tk.Tk):
         # アプリ全体を閉じたときの安全処理
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # ==========================================
         # 大枠の画面（土台）を作成
-        # ==========================================
         self.frame_top = tk.Frame(self)
         self.frame_pred = tk.Frame(self)
         self.frame_dev = tk.Frame(self)
@@ -37,9 +35,7 @@ class ScriptControllerApp(tk.Tk):
         # 最初はトップ画面を表示
         self.show_screen(self.frame_top)
 
-    # ==========================================
     # プロセス管理と画面遷移の安全処理
-    # ==========================================
     def stop_current_process(self):
         # 現在実行中のプロセスがあれば強制終了する
         if self.current_process and self.current_process.poll() is None:
@@ -70,9 +66,7 @@ class ScriptControllerApp(tk.Tk):
         self.frame_dev.pack_forget()
         frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-    # ==========================================
     # トップ画面の構築
-    # ==========================================
     def build_top_screen(self):
         lbl_title = tk.Label(self.frame_top, text="Focus Tracker", font=("MS Gothic", 32, "bold"))
         lbl_title.pack(pady=80)
@@ -91,9 +85,7 @@ class ScriptControllerApp(tk.Tk):
         )
         btn_dev.pack(pady=15)
 
-    # ==========================================
     # 予測モード画面の構築
-    # ==========================================
     def build_pred_screen(self):
         btn_back = tk.Button(self.frame_pred, text="◀ トップに戻る", font=("MS Gothic", 12), command=self.back_to_top)
         btn_back.pack(anchor=tk.NW, pady=(0, 10))
@@ -111,9 +103,7 @@ class ScriptControllerApp(tk.Tk):
         self.log_area_pred = scrolledtext.ScrolledText(self.frame_pred, width=80, height=20, state='disabled', font=("MS Gothic", 14))
         self.log_area_pred.pack(pady=10)
 
-    # ==========================================
-    # 開発者モード画面の構築 (ここにタブを組み込む)
-    # ==========================================
+    # 開発者モード画面の構築
     def build_dev_screen(self):
         btn_back = tk.Button(self.frame_dev, text="◀ トップに戻る", font=("MS Gothic", 12), command=self.back_to_top)
         btn_back.pack(anchor=tk.NW, pady=(0, 10))
@@ -142,7 +132,7 @@ class ScriptControllerApp(tk.Tk):
 
     # --- データ収集ページ ---
     def build_data_tab(self):
-        lbl_title = tk.Label(self.tab_data, text="【 学習データの収集とリアルタイム計測 】", font=("MS Gothic", 16, "bold"))
+        lbl_title = tk.Label(self.tab_data, text="【 学習データの収集 】", font=("MS Gothic", 16, "bold"))
         lbl_title.pack(pady=15)
 
         btn_frame = tk.Frame(self.tab_data)
