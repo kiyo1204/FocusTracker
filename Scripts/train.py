@@ -83,7 +83,7 @@ history = model.fit(
     epochs=30,
     batch_size=16,
     validation_data=(X_test, y_test),
-    verbose=1
+    verbose=2
 )
 
 model.save("./models/model.keras")
