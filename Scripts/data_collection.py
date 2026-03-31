@@ -132,12 +132,12 @@ def pred():
         cv2.imshow("Real-Time Prediction", frame)
         if cv2.waitKey(1) & 0xFF == ord("@"): 
             print("--- プログラムを停止します ---")
-            detector.close()
             break
 
     # 終了処理とデータ保存
     cap.release()
     cv2.destroyAllWindows()
+    detector.close()
 
 def create_features(file_name):
     sequence_data = []
@@ -223,33 +223,32 @@ def create_features(file_name):
         cv2.putText(frame, "Press '@' to exit", (20, 450), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow("Data Collection", frame)
         if cv2.waitKey(1) & 0xFF == ord("@"):
-            # 終了処理とデータ保存
-            cap.release()
-            cv2.destroyAllWindows()
+            break
 
-            print("プログラムを停止します")
-            print("取得データを保存しますか? 保存するなら'YES'を押してください")
-            if input() == "YES": 
-                print("*** データを保存します ***")
-                if len(all_samples) > 0:
-                    X_data = np.array(all_samples)
+        cap.release()
+        cv2.destroyAllWindows()
 
-                    if os.path.exists(file_name):
-                        print("既存ファイルに結合しますか?")
-                        print("保存するなら'YES'を押してください")
-                        if input() == "YES":
-                            print("*** 既存データに結合します ***")
-                            existing_data = np.load(file_name)
-                            X_data = np.concatenate((existing_data, X_data), axis=0)
-                            print("✅ 既存データと結合しました")
+        print("プログラムを停止します")
+        print("取得データを保存しますか? 保存するなら'YES'を押してください")
+        if input() == "YES": 
+            print("*** データを保存します ***")
+            if len(all_samples) > 0:
+                X_data = np.array(all_samples)
+
+                if os.path.exists(file_name):
+                    print("既存ファイルに結合しますか?")
+                    print("保存するなら'YES'を押してください")
+                    if input() == "YES":
+                        print("*** 既存データに結合します ***")
+                        existing_data = np.load(file_name)
+                        X_data = np.concatenate((existing_data, X_data), axis=0)
+                        print("✅ 既存データと結合しました")
                     
-                    print(f"- データの最終形状: {X_data.shape}")
-                    np.save(file_name, X_data)
-                    print("✅ 保存しました！")
-                else:
-                    print("⚠️ サンプルが1つも取得できませんでした。保存をスキップします. ")
-                    detector.close()
-                    break
+                print(f"- データの最終形状: {X_data.shape}")
+                np.save(file_name, X_data)
+                print("✅ 保存しました！")
+            else:
+                print("⚠️ サンプルが1つも取得できませんでした。保存をスキップします. ")
                 
             print("--- 終了します ---")
             detector.close()
